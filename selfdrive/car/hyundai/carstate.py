@@ -39,6 +39,8 @@ class CarState(CarStateBase):
     self.acc_active = False
     self.cruise_active = False
 
+    self.non_scc = CP.sccBus == -1
+
     if self.CP.carFingerprint in FEATURES["use_cluster_gears"]:
       self.shifter_values = can_define.dv["CLU15"]["CF_Clu_Gear"]
     elif self.CP.carFingerprint in FEATURES["use_tcu_gears"]:
@@ -103,7 +105,7 @@ class CarState(CarStateBase):
     ret.steeringTorque = cp.vl["MDPS12"]["CR_Mdps_StrColTq"]
     ret.steeringTorqueEps = cp.vl["MDPS12"]["CR_Mdps_OutTq"]
     ret.steeringPressed = abs(ret.steeringTorque) > STEER_THRESHOLD
-    ret.steerWarning = cp.vl["MDPS12"]["CF_Mdps_ToiUnavail"] != 0 or cp.vl["MDPS12"]["CF_Mdps_ToiFlt"] != 0
+    #ret.steerWarning = cp.vl["MDPS12"]["CF_Mdps_ToiUnavail"] != 0 or cp.vl["MDPS12"]["CF_Mdps_ToiFlt"] != 0
 
     self.leftBlinkerOn = cp.vl["CGW1"]["CF_Gway_TurnSigLh"] != 0
     self.rightBlinkerOn = cp.vl["CGW1"]["CF_Gway_TurnSigRh"] != 0
@@ -115,22 +117,27 @@ class CarState(CarStateBase):
       ret.cruiseState.enabled = cp.vl["TCS13"]["ACC_REQ"] == 1
       ret.cruiseState.standstill = False
     else:
-      ret.cruiseState.available = cp.vl["SCC11"]["MainMode_ACC"] == 1
-      ret.cruiseState.enabled = cp.vl["SCC12"]["ACCMode"] != 0
+      if not self.non_scc:
+        ret.cruiseState.available = cp.vl["SCC11"]["MainMode_ACC"] == 1
+        ret.cruiseState.enabled = cp.vl["SCC12"]["ACCMode"] != 0
+        ret.cruiseState.standstill = cp.vl["SCC11"]["SCCInfoDisplay"] == 4.
+      else:
+        ret.cruiseState.available = cp.vl['EMS16']['CRUISE_LAMP_M'] != 0
+        #ret.cruiseState.enabled = cp.vl["LVR12"]['CF_Lvr_CruiseSet'] != 0
+        ret.cruiseState.standstill = False
       self.acc_active = ret.cruiseState.enabled
       self.cruise_active = self.acc_active
-      ret.cruiseState.standstill = cp.vl["SCC11"]["SCCInfoDisplay"] == 4.
 
     self.cruiseState_standstill = ret.cruiseState.standstill
 
     if ret.cruiseState.available:
-      if not self.CP.pcmCruise or not self.CP.pcmCruiseSpeed:
-        if self.prev_cruise_buttons == 2: # SET-
-          if self.cruise_buttons != 2:
-            self.accEnabled = True
-        elif self.prev_cruise_buttons == 1 and self.resumeAvailable == True: # RESUME+
-          if self.cruise_buttons != 1:
-            self.accEnabled = True
+      #if not self.CP.pcmCruise or not self.CP.pcmCruiseSpeed:
+      #  if self.prev_cruise_buttons == 2: # SET-
+      #    if self.cruise_buttons != 2:
+      #      self.accEnabled = True
+      #  elif self.prev_cruise_buttons == 1 and self.resumeAvailable == True: # RESUME+
+      #    if self.cruise_buttons != 1:
+      #      self.accEnabled = True
 
       if not self.disable_mads:
         if self.CP.carFingerprint in FEATURES["use_lfa_button"]:
@@ -141,13 +148,13 @@ class CarState(CarStateBase):
           if self.prev_acc_main_enabled != 1: #1 == not ACC Main button
             if self.acc_main_enabled == 1:
               self.accMainEnabled = not self.accMainEnabled
-        if self.acc_mads_combo:
-          if not self.prev_acc_mads_combo and ret.cruiseState.enabled:
-            if self.CP.carFingerprint in FEATURES["use_lfa_button"]:
-              self.lfaEnabled = True
-            elif self.CP.carFingerprint not in FEATURES["use_lfa_button"]:
-              self.accMainEnabled = True
-          self.prev_acc_mads_combo = ret.cruiseState.enabled
+        #if self.acc_mads_combo:
+        #  if not self.prev_acc_mads_combo and ret.cruiseState.enabled:
+        #    if self.CP.carFingerprint in FEATURES["use_lfa_button"]:
+        #      self.lfaEnabled = True
+        #    elif self.CP.carFingerprint not in FEATURES["use_lfa_button"]:
+        #      self.accMainEnabled = True
+        #  self.prev_acc_mads_combo = ret.cruiseState.enabled
     else:
       if self.CP.carFingerprint in FEATURES["use_lfa_button"]:
         self.lfaEnabled = False
@@ -155,40 +162,40 @@ class CarState(CarStateBase):
         self.accMainEnabled = False
       self.accEnabled = False
 
-    if (not self.CP.pcmCruise) or (self.CP.pcmCruise and self.CP.minEnableSpeed > 0) or not self.CP.pcmCruiseSpeed:
-      if self.prev_cruise_buttons != 4: # CANCEL
-        if self.cruise_buttons == 4:
-          self.accEnabled = False
-          if self.disable_mads:
-            if self.CP.carFingerprint in FEATURES["use_lfa_button"]:
-              self.lfaEnabled = False
-            elif self.CP.carFingerprint not in FEATURES["use_lfa_button"]:
-              self.accMainEnabled = False
-      if ret.brakePressed:
-        self.accEnabled = False
-        if self.disable_mads:
-          if self.CP.carFingerprint in FEATURES["use_lfa_button"]:
-            self.lfaEnabled = False
-          elif self.CP.carFingerprint not in FEATURES["use_lfa_button"]:
-            self.accMainEnabled = False
+    #if (not self.CP.pcmCruise) or (self.CP.pcmCruise and self.CP.minEnableSpeed > 0) or not self.CP.pcmCruiseSpeed:
+    #  if self.prev_cruise_buttons != 4: # CANCEL
+    #    if self.cruise_buttons == 4:
+    #      self.accEnabled = False
+    #      if self.disable_mads:
+    #        if self.CP.carFingerprint in FEATURES["use_lfa_button"]:
+    #          self.lfaEnabled = False
+    #        elif self.CP.carFingerprint not in FEATURES["use_lfa_button"]:
+    #          self.accMainEnabled = False
+    #  if ret.brakePressed:
+    #    self.accEnabled = False
+    #    if self.disable_mads:
+    #      if self.CP.carFingerprint in FEATURES["use_lfa_button"]:
+    #        self.lfaEnabled = False
+    #      elif self.CP.carFingerprint not in FEATURES["use_lfa_button"]:
+    #        self.accMainEnabled = False
 
-    if self.CP.pcmCruise and self.CP.minEnableSpeed > 0 and self.CP.pcmCruiseSpeed:
-      if ret.gasPressed and not ret.cruiseState.enabled:
-        self.accEnabled = False
-      self.accEnabled = ret.cruiseState.enabled or self.accEnabled
+    #if self.CP.pcmCruise and self.CP.minEnableSpeed > 0 and self.CP.pcmCruiseSpeed:
+    #  if ret.gasPressed and not ret.cruiseState.enabled:
+    #    self.accEnabled = False
+    #  self.accEnabled = ret.cruiseState.enabled or self.accEnabled
 
-    if not self.CP.pcmCruise or not self.CP.pcmCruiseSpeed:
-      ret.cruiseState.enabled = self.accEnabled
+    #if not self.CP.pcmCruise or not self.CP.pcmCruiseSpeed:
+    #  ret.cruiseState.enabled = self.accEnabled
 
-    if ret.cruiseState.enabled:
-      if self.disable_mads:
-        if self.CP.carFingerprint in FEATURES["use_lfa_button"]:
-          self.lfaEnabled = True
-        elif self.CP.carFingerprint not in FEATURES["use_lfa_button"]:
-          self.accMainEnabled = True
+    #if ret.cruiseState.enabled:
+    #  if self.disable_mads:
+    #    if self.CP.carFingerprint in FEATURES["use_lfa_button"]:
+    #      self.lfaEnabled = True
+    #    elif self.CP.carFingerprint not in FEATURES["use_lfa_button"]:
+    #      self.accMainEnabled = True
 
-    if ret.cruiseState.enabled:
-      self.resumeAvailable = True
+    #if ret.cruiseState.enabled:
+    #  self.resumeAvailable = True
 
     ret.steerWarning = False
     if self.lfaEnabled or self.accMainEnabled:
@@ -197,7 +204,10 @@ class CarState(CarStateBase):
 
     if not self.CP.openpilotLongitudinalControl:
       speed_conv = CV.MPH_TO_MS if cp.vl["CLU11"]["CF_Clu_SPEED_UNIT"] else CV.KPH_TO_MS
-      ret.cruiseState.speed = cp.vl["SCC11"]["VSetDis"] * speed_conv
+      if not self.non_scc:
+        ret.cruiseState.speed = cp.vl["SCC11"]["VSetDis"] * speed_conv
+      else:
+        ret.cruiseState.speed = cp.vl["LVR12"]["CF_Lvr_CruiseSet"] * speed_conv
 
     if self.CP.carFingerprint in (HYBRID_CAR | EV_CAR):
       if self.CP.carFingerprint in HYBRID_CAR:
@@ -223,9 +233,12 @@ class CarState(CarStateBase):
     ret.gearShifter = self.parse_gear_shifter(self.shifter_values.get(gear))
 
     if not self.CP.openpilotLongitudinalControl:
-      if self.CP.carFingerprint in FEATURES["use_fca"]:
+      if self.CP.carFingerprint in FEATURES["use_fca"] and not self.non_scc:
         ret.stockAeb = cp.vl["FCA11"]["FCA_CmdAct"] != 0
         ret.stockFcw = cp.vl["FCA11"]["CF_VSM_Warn"] == 2
+      elif self.CP.carFingerprint in FEATURES["use_fca"] and self.non_scc:
+        ret.stockAeb = cp_cam.vl["FCA11"]["FCA_CmdAct"] != 0
+        ret.stockFcw = cp_cam.vl["FCA11"]["CF_VSM_Warn"] == 2
       else:
         ret.stockAeb = cp.vl["SCC12"]["AEB_CmdAct"] != 0
         ret.stockFcw = cp.vl["SCC12"]["CF_VSM_Warn"] == 2
@@ -242,8 +255,9 @@ class CarState(CarStateBase):
     self.brake_error = cp.vl["TCS13"]["ACCEnable"] != 0 # 0 ACC CONTROL ENABLED, 1-3 ACC CONTROL DISABLED
 
     if not self.CP.openpilotLongitudinalControl:
-      ret.radarObjValid = cp.vl["SCC11"]["ObjValid"] == 1
-      self.lead_distance = cp.vl["SCC11"]["ACC_ObjDist"]
+      if not self.non_scc:
+        ret.radarObjValid = cp.vl["SCC11"]["ObjValid"] == 1
+        self.lead_distance = cp.vl["SCC11"]["ACC_ObjDist"]
 
     return ret
 
@@ -321,21 +335,27 @@ class CarState(CarStateBase):
     ]
 
     if not CP.openpilotLongitudinalControl:
-      signals += [
-        ("MainMode_ACC", "SCC11", 0),
-        ("VSetDis", "SCC11", 0),
-        ("SCCInfoDisplay", "SCC11", 0),
-        ("ACC_ObjDist", "SCC11", 0),
-        ("ACCMode", "SCC12", 1),
-        ("ObjValid", "SCC11", 0),
-      ]
+      if CP.sccBus != -1:
+        signals += [
+          ("MainMode_ACC", "SCC11", 0),
+          ("VSetDis", "SCC11", 0),
+          ("SCCInfoDisplay", "SCC11", 0),
+          ("ACC_ObjDist", "SCC11", 0),
+          ("ACCMode", "SCC12", 1),
+          ("ObjValid", "SCC11", 0),
+        ]
 
-      checks += [
-        ("SCC11", 50),
-        ("SCC12", 50),
-      ]
+        checks += [
+          ("SCC11", 50),
+          ("SCC12", 50),
+        ]
+      elif CP.sccBus == -1:
+        signals += [
+          ("CRUISE_LAMP_M", "EMS16", 0),
+          ("CF_Lvr_CruiseSet", "LVR12", 0),
+        ]
 
-      if CP.carFingerprint in FEATURES["use_fca"]:
+      if CP.carFingerprint in FEATURES["use_fca"] and CP.sccBus != -1:
         signals += [
           ("FCA_CmdAct", "FCA11", 0),
           ("CF_VSM_Warn", "FCA11", 0),
@@ -428,5 +448,13 @@ class CarState(CarStateBase):
     checks = [
       ("LKAS11", 100)
     ]
+
+    if not CP.openpilotLongitudinalControl:
+      if CP.carFingerprint in FEATURES["use_fca"] and CP.sccBus == -1:
+        signals += [
+          ("FCA_CmdAct", "FCA11", 0),
+          ("CF_VSM_Warn", "FCA11", 0),
+        ]
+        checks += [("FCA11", 50)]
 
     return CANParser(DBC[CP.carFingerprint]["pt"], signals, checks, 2)

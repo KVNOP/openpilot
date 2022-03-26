@@ -412,6 +412,7 @@ struct CarParams {
   flags @64 :UInt32;         # flags for car specific quirks
   standStill @65: Bool;
   pcmCruiseSpeed @66 :Bool;  # is openpilot's state tied to the PCM's cruise speed?
+  sccBus @67 :Int8;
 
   minEnableSpeed @7 :Float32;
   minSteerSpeed @8 :Float32;
